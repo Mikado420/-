@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>簡易ゴッドフィールド Online</title>
+<style>
+body{font-family:sans-serif;text-align:center}
+.card{border:1px solid #333;padding:8px;margin:5px;display:inline-block;cursor:pointer}
+.box{border:1px solid #000;margin:10px;padding:10px}
+</style>
+</head>
+<body>
+
+<h2>簡易ゴッドフィールド Online</h2>
+
+<div>
+  ルームID:
+  <input id="roomId" value="room1">
+  <button onclick="joinRoom()">参加</button>
+</div>
+
+<div id="game" style="display:none">
+
+<div class="box">
+  <div>あなたのライフ: <span id="myLife"></span></div>
+  <div>相手のライフ: <span id="opLife"></span></div>
+  <div>現在のターン: <span id="turnView"></span></div>
+</div>
+
+<div class="box">
+  <div>あなたの手札</div>
+  <div id="hand"></div>
+</div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from 
+"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, get }
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+/* ===== Firebase設定を自分の値に変更 ===== */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT"
+};
+/* ======================================== */
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let playerIndex = null;
+let roomRef = null;
+
+function randomDeck(){
+  let d=[];
+  for(let i=0;i<10;i++){
+    d.push(Math.floor(Math.random()*6)+1);
+  }
+  return d;
+}
+
+async function joinRoom(){
+  const id=document.getElementById("roomId").value;
+  roomRef=ref(db,"rooms/"+id);
+
+  const snap=await get(roomRef);
+  if(!snap.exists()){
+    // 部屋作成
+    await set(roomRef,{
+      life:[30,30],
+      hands:[
+        randomDeck().slice(0,3),
+        []
+      ],
+      decks:[
+        randomDeck(),
+        randomDeck()
+      ],
+      turn:0
+    });
+    playerIndex=0;
+  }else{
+    playerIndex=1;
+    const data=snap.val();
+    data.hands[1]=data.decks[1].slice(0,3);
+    await update(roomRef,data);
+  }
+
+  document.getElementById("game").style.display="block";
+  listenRoom();
+}
+
+function listenRoom(){
+  onValue(roomRef,(snap)=>{
+    const data=snap.val();
+    if(!data)return;
+
+    document.getElementById("myLife").textContent=
+      data.life[playerIndex];
+    document.getElementById("opLife").textContent=
+      data.life[playerIndex===0?1:0];
+    document.getElementById("turnView").textContent=
+      data.turn===playerIndex?"あなた":"相手";
+
+    renderHand(data);
+  });
+}
+
+function renderHand(data){
+  const handDiv=document.getElementById("hand");
+  handDiv.innerHTML="";
+  const myHand=data.hands[playerIndex];
+
+  myHand.forEach((dmg,i)=>{
+    const div=document.createElement("div");
+    div.className="card";
+    div.textContent="攻撃 "+dmg;
+    div.onclick=()=>playCard(i,dmg,data);
+    handDiv.appendChild(div);
+  });
+}
+
+async function playCard(index,dmg,data){
+  if(data.turn!==playerIndex)return;
+
+  const opponent=playerIndex===0?1:0;
+
+  data.life[opponent]-=dmg;
+  data.hands[playerIndex].splice(index,1);
+
+  // ドロー
+  if(data.decks[playerIndex].length>0){
+    data.hands[playerIndex]
+      .push(data.decks[playerIndex].pop());
+  }
+
+  data.turn=opponent;
+
+  await update(roomRef,data);
+
+  if(data.life[opponent]<=0){
+    alert("勝利！");
+    await set(roomRef,null);
+  }
+}
+
+window.joinRoom=joinRoom;
+</script>
+
+</body>
+</html>
