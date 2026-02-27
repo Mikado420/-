@@ -2,157 +2,315 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>簡易ゴッドフィールド Online</title>
+<title>Godfield Lite</title>
 <style>
-body{font-family:sans-serif;text-align:center}
-.card{border:1px solid #333;padding:8px;margin:5px;display:inline-block;cursor:pointer}
-.box{border:1px solid #000;margin:10px;padding:10px}
+body{
+  margin:0;
+  background:#111;
+  font-family:sans-serif;
+  color:white;
+}
+.container{
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+}
+.top,.bottom{
+  text-align:center;
+  padding:10px;
+}
+.center{
+  text-align:center;
+  background:#1c1c1c;
+  padding:8px;
+}
+.life{
+  font-size:20px;
+}
+.hand{
+  display:flex;
+  justify-content:center;
+  flex-wrap:wrap;
+  margin-top:5px;
+}
+.card{
+  width:70px;
+  height:110px;
+  margin:6px;
+  border-radius:8px;
+  border:3px solid gold;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  cursor:pointer;
+  transition:0.15s;
+}
+.card:hover{
+  transform:scale(1.08);
+}
+.attack{
+  background:linear-gradient(#600,#a00);
+}
+.defense{
+  background:linear-gradient(#003,#06c);
+}
+.cardType{
+  font-size:12px;
+  margin-top:4px;
+}
+.cardValue{
+  font-size:28px;
+  font-weight:bold;
+  margin-bottom:8px;
+}
+button{
+  margin:5px;
+  padding:6px 12px;
+  background:#333;
+  color:white;
+  border:1px solid #aaa;
+}
+.guide{
+  color:gold;
+  font-size:14px;
+}
+.result{
+  font-size:24px;
+  color:gold;
+}
+.log{
+  height:70px;
+  overflow:auto;
+  font-size:12px;
+  background:#000;
+  margin-top:5px;
+}
 </style>
 </head>
 <body>
 
-<h2>簡易ゴッドフィールド Online</h2>
+<div class="container">
 
-<div>
-  ルームID:
-  <input id="roomId" value="room1">
-  <button onclick="joinRoom()">参加</button>
+<div class="top">
+  BOT ❤ <span id="botLife"></span>
 </div>
 
-<div id="game" style="display:none">
-
-<div class="box">
-  <div>あなたのライフ: <span id="myLife"></span></div>
-  <div>相手のライフ: <span id="opLife"></span></div>
-  <div>現在のターン: <span id="turnView"></span></div>
+<div class="center">
+  ターン: <span id="turnView"></span>
+  <div class="guide" id="guide"></div>
+  <div class="result" id="result"></div>
+  <div class="log" id="log"></div>
 </div>
 
-<div class="box">
-  <div>あなたの手札</div>
-  <div id="hand"></div>
+<div class="bottom">
+  あなた ❤ <span id="playerLife"></span>
+  <div class="hand" id="hand"></div>
+  <button onclick="reroll()">交換（ターン消費）</button>
 </div>
 
 </div>
 
-<script type="module">
-import { initializeApp } from 
-"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, update, onValue, get }
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+<script>
+let player, bot, turn, pendingAttack=null;
+let gameOver=false;
+let rerollUsed=false;
 
-/* ===== Firebase設定を自分の値に変更 ===== */
-const firebaseConfig = {
-  apiKey: "AIzaSyBROkT92rnio343hJFFuXgcQlTfL8rLo_E",
-  authDomain: "cardgame-d643a.firebaseapp.com",
-  databaseURL: "https://cardgame-d643a-default-rtdb.firebaseio.com",
-  projectId: "cardgame-d643a",
-  storageBucket: "cardgame-d643a.firebasestorage.app",
-  messagingSenderId: "836160910227",
-  appId: "1:836160910227:web:781c07e3ae0429065bee66",
-  measurementId: "G-XVHRWP6XBV"
-};
-/* ======================================== */
+function weightedValue(){
+  const r1=Math.floor(Math.random()*15)+1;
+  const r2=Math.floor(Math.random()*15)+1;
+  return Math.round((r1+r2)/2);
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+function randomCard(){
+  const type=Math.random()<0.6?"attack":"defense";
+  return {type,value:weightedValue()};
+}
 
-let playerIndex = null;
-let roomRef = null;
-
-function randomDeck(){
-  let d=[];
-  for(let i=0;i<10;i++){
-    d.push(Math.floor(Math.random()*6)+1);
+function fillHand(c){
+  while(c.hand.length<5){
+    c.hand.push(randomCard());
   }
-  return d;
 }
 
-async function joinRoom(){
-  const id=document.getElementById("roomId").value;
-  roomRef=ref(db,"rooms/"+id);
-
-  const snap=await get(roomRef);
-  if(!snap.exists()){
-    // 部屋作成
-    await set(roomRef,{
-      life:[30,30],
-      hands:[
-        randomDeck().slice(0,3),
-        []
-      ],
-      decks:[
-        randomDeck(),
-        randomDeck()
-      ],
-      turn:0
-    });
-    playerIndex=0;
-  }else{
-    playerIndex=1;
-    const data=snap.val();
-    data.hands[1]=data.decks[1].slice(0,3);
-    await update(roomRef,data);
-  }
-
-  document.getElementById("game").style.display="block";
-  listenRoom();
+function log(t){
+  const l=document.getElementById("log");
+  l.innerHTML+=t+"<br>";
+  l.scrollTop=l.scrollHeight;
 }
 
-function listenRoom(){
-  onValue(roomRef,(snap)=>{
-    const data=snap.val();
-    if(!data)return;
-
-    document.getElementById("myLife").textContent=
-      data.life[playerIndex];
-    document.getElementById("opLife").textContent=
-      data.life[playerIndex===0?1:0];
-    document.getElementById("turnView").textContent=
-      data.turn===playerIndex?"あなた":"相手";
-
-    renderHand(data);
-  });
+function init(){
+  player={life:50,hand:[]};
+  bot={life:50,hand:[]};
+  turn="player";
+  pendingAttack=null;
+  gameOver=false;
+  rerollUsed=false;
+  document.getElementById("result").textContent="";
+  document.getElementById("log").innerHTML="";
+  fillHand(player);
+  fillHand(bot);
+  update();
 }
 
-function renderHand(data){
+function createCardElement(card,i,clickFunc){
+  const div=document.createElement("div");
+  div.className="card "+card.type;
+  div.onclick=clickFunc;
+
+  const type=document.createElement("div");
+  type.className="cardType";
+  type.textContent=card.type==="attack"?"ATTACK":"DEFENSE";
+
+  const value=document.createElement("div");
+  value.className="cardValue";
+  value.textContent=card.value;
+
+  div.appendChild(type);
+  div.appendChild(value);
+  return div;
+}
+
+function update(){
+  document.getElementById("playerLife").textContent=player.life;
+  document.getElementById("botLife").textContent=bot.life;
+  document.getElementById("turnView").textContent=
+    turn==="player"?"あなた":"BOT";
+
+  const guide=document.getElementById("guide");
   const handDiv=document.getElementById("hand");
   handDiv.innerHTML="";
-  const myHand=data.hands[playerIndex];
 
-  myHand.forEach((dmg,i)=>{
-    const div=document.createElement("div");
-    div.className="card";
-    div.textContent="攻撃 "+dmg;
-    div.onclick=()=>playCard(i,dmg,data);
-    handDiv.appendChild(div);
-  });
-}
+  if(gameOver) return;
 
-async function playCard(index,dmg,data){
-  if(data.turn!==playerIndex)return;
+  if(pendingAttack && pendingAttack.target==="player"){
+    guide.textContent="防御カードを選ぶか『受ける』を押す";
 
-  const opponent=playerIndex===0?1:0;
+    let defenseExists=false;
+    player.hand.forEach((card,i)=>{
+      if(card.type==="defense"){
+        defenseExists=true;
+        handDiv.appendChild(
+          createCardElement(card,i,()=>useDefense(i))
+        );
+      }
+    });
 
-  data.life[opponent]-=dmg;
-  data.hands[playerIndex].splice(index,1);
+    const btn=document.createElement("button");
+    btn.textContent="受ける";
+    btn.onclick=resolveAttack;
+    handDiv.appendChild(btn);
 
-  // ドロー
-  if(data.decks[playerIndex].length>0){
-    data.hands[playerIndex]
-      .push(data.decks[playerIndex].pop());
+    return;
   }
 
-  data.turn=opponent;
-
-  await update(roomRef,data);
-
-  if(data.life[opponent]<=0){
-    alert("勝利！");
-    await set(roomRef,null);
+  if(turn==="player"){
+    guide.textContent="攻撃カードを選択";
+    player.hand.forEach((card,i)=>{
+      handDiv.appendChild(
+        createCardElement(card,i,()=>playPlayerCard(i))
+      );
+    });
+  }else{
+    guide.textContent="BOTのターン";
   }
 }
 
-window.joinRoom=joinRoom;
+function playPlayerCard(i){
+  if(turn!=="player"||gameOver)return;
+  const card=player.hand.splice(i,1)[0];
+
+  if(card.type==="attack"){
+    log("あなたの攻撃 "+card.value);
+    pendingAttack={damage:card.value,target:"bot"};
+    botDefense();
+  }else{
+    player.hand.push(card);
+  }
+}
+
+function botTurn(){
+  if(gameOver)return;
+  const atk=bot.hand.findIndex(c=>c.type==="attack");
+  if(atk===-1){turn="player";rerollUsed=false;update();return;}
+  const card=bot.hand.splice(atk,1)[0];
+  log("BOTの攻撃 "+card.value);
+  pendingAttack={damage:card.value,target:"player"};
+  update();
+}
+
+function botDefense(){
+  const defs=bot.hand
+    .map((c,i)=>({c,i}))
+    .filter(x=>x.c.type==="defense");
+
+  if(defs.length===0){resolveAttack();return;}
+
+  const chosen=defs[0];
+  const reduce=Math.min(chosen.c.value,pendingAttack.damage);
+  pendingAttack.damage-=reduce;
+  bot.hand.splice(chosen.i,1);
+  log("BOTは防御 "+reduce);
+  resolveAttack();
+}
+
+function useDefense(i){
+  const card=player.hand.splice(i,1)[0];
+  const reduce=Math.min(card.value,pendingAttack.damage);
+  pendingAttack.damage-=reduce;
+  log("あなたは防御 "+reduce);
+  resolveAttack();
+}
+
+function resolveAttack(){
+  if(!pendingAttack)return;
+
+  if(pendingAttack.target==="player"){
+    player.life=Math.max(0,player.life-pendingAttack.damage);
+  }else{
+    bot.life=Math.max(0,bot.life-pendingAttack.damage);
+  }
+
+  pendingAttack=null;
+  fillHand(player);
+  fillHand(bot);
+
+  if(checkWin())return;
+
+  turn=turn==="player"?"bot":"player";
+  rerollUsed=false;
+  update();
+
+  if(turn==="bot"){
+    setTimeout(botTurn,600);
+  }
+}
+
+function reroll(){
+  if(turn!=="player"||gameOver||rerollUsed)return;
+  log("手札交換");
+  player.hand=[];
+  fillHand(player);
+  rerollUsed=true;
+  turn="bot";
+  update();
+  setTimeout(botTurn,600);
+}
+
+function checkWin(){
+  if(player.life<=0){
+    gameOver=true;
+    document.getElementById("result").textContent="敗北";
+    return true;
+  }
+  if(bot.life<=0){
+    gameOver=true;
+    document.getElementById("result").textContent="勝利";
+    return true;
+  }
+  return false;
+}
+
+init();
 </script>
 
 </body>
