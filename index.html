@@ -1,308 +1,524 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>Godfield Stable Validated</title>
+<meta charset="utf-8" />
+<title>Godfield — Stable & Animated</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-body{margin:0;background:#111;color:white;font-family:sans-serif}
-.container{display:flex;flex-direction:column;height:100vh}
-.top,.bottom{text-align:center;padding:8px}
-.center{text-align:center;background:#1c1c1c;padding:8px;position:relative}
-.hand,.useArea{display:flex;justify-content:center;flex-wrap:wrap;margin:8px;min-height:130px}
-.useArea{border:2px dashed gold}
-.card{width:80px;height:120px;margin:6px;border-radius:8px;border:3px solid gold;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;font-size:12px}
-.attack{background:linear-gradient(#600,#a00)}
-.defense{background:linear-gradient(#003,#06c)}
-.heal{background:linear-gradient(#064,#0a5)}
-.boost{background:linear-gradient(#640,#aa0)}
-.cardValue{font-size:24px;font-weight:bold}
-button{margin:4px;padding:6px 10px;background:#333;color:white;border:1px solid #aaa}
-.log{height:100px;overflow:auto;background:#000;font-size:12px;margin-top:6px}
-.result{font-size:22px;color:gold}
-.popup{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:48px;font-weight:bold;opacity:0;pointer-events:none}
-.show{animation:pop 1s forwards}
-@keyframes pop{
-0%{opacity:1;transform:translate(-50%,-50%) scale(0.5)}
-50%{transform:translate(-50%,-50%) scale(1.2)}
-100%{opacity:0;transform:translate(-50%,-50%) scale(1)}
-}
+  :root{
+    --bg:#0f0f12;
+    --panel:#16161a;
+    --accent:#ffd055;
+    --hp-player:#7be67b;
+    --hp-bot:#ff7b7b;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:#eee;font-family:system-ui,Arial;}
+  .container{display:flex;flex-direction:column;height:100%}
+  .header{display:flex;justify-content:space-between;padding:12px 16px;align-items:center;background:linear-gradient(180deg,#141418,#19191d)}
+  .hp{font-weight:700;font-size:18px}
+  .center{flex:1;padding:12px;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .statusRow{display:flex;gap:12px;align-items:center}
+  .turn{font-weight:700}
+  .phase-action{color:#4ce0ff}
+  .phase-defense{color:#ff8f8f}
+
+  /* split display */
+  .splitArea{display:flex;width:100%;max-width:980px;gap:12px}
+  .side{
+    flex:1;
+    min-height:150px;
+    background:var(--panel);
+    border-radius:10px;
+    border:2px solid rgba(255,215,85,0.08);
+    padding:8px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .side .label{font-weight:700;margin-bottom:6px}
+  .field{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:6px;width:100%}
+
+  /* hand */
+  .handWrap{width:100%;max-width:980px;padding:10px;display:flex;justify-content:center}
+  .hand{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+  .card{
+    width:80px;height:118px;border-radius:8px;border:2px solid #444;
+    display:flex;flex-direction:column;justify-content:space-between;padding:8px;
+    box-sizing:border-box;color:white;cursor:pointer;user-select:none;
+    transition:transform .18s,box-shadow .18s,opacity .18s;
+    background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.15));
+    position:relative;
+  }
+  .card:hover{transform:translateY(-6px) scale(1.03);box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+  .card .type{font-size:12px;opacity:0.9}
+  .card .value{font-weight:800;font-size:20px;text-align:center}
+  .attack{background:linear-gradient(180deg,#8b1b1b,#5d0707)}
+  .defense{background:linear-gradient(180deg,#003b6b,#002040)}
+  .heal{background:linear-gradient(180deg,#0a7a3a,#064f28)}
+  .boost{background:linear-gradient(180deg,#5d4b00,#a07a00)}
+  .selected{outline:4px solid rgba(255,255,255,0.14);transform:translateY(-4px) scale(1.04)}
+  .played{animation:playIn .28s ease}
+  @keyframes playIn{from{transform:translateY(-10px) scale(.9);opacity:0}to{transform:none;opacity:1}}
+
+  /* popup damage/heal */
+  .popup{
+    position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);
+    font-size:46px;font-weight:800;padding:6px 12px;border-radius:8px;
+    pointer-events:none;opacity:0;filter:drop-shadow(0 6px 18px rgba(0,0,0,0.6));
+  }
+  .pop-show{animation:popAnim .9s forwards}
+  @keyframes popAnim{
+    0%{opacity:1;transform:translate(-50%,-50%) scale(.5)}
+    40%{transform:translate(-50%,-50%) scale(1.18)}
+    100%{opacity:0;transform:translate(-50%,-80%) scale(1)}
+  }
+
+  /* small notices */
+  .notice{
+    position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+    background:#222;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);
+    opacity:0.98;font-weight:700
+  }
+
+  /* small info under fields */
+  .small{font-size:13px;color:#ccc;margin-top:6px}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .result{margin-top:6px;color:var(--accent);font-weight:800}
+  @media(max-width:720px){
+    .splitArea{flex-direction:column}
+    .side{width:100%}
+  }
 </style>
 </head>
 <body>
-
 <div class="container">
-<div class="top">BOT ❤ <span id="botLife"></span></div>
 
-<div class="center">
-ターン: <span id="turnView"></span> |
-フェーズ: <span id="phaseView"></span>
+  <div class="header">
+    <div class="hp">BOT HP: <span id="botLife">50</span></div>
+    <div class="statusRow">
+      <div class="turn">TURN: <span id="turnView">player</span></div>
+      <div style="width:10px"></div>
+      <div>PHASE: <span id="phaseView" class="phase-action">action</span></div>
+    </div>
+    <div class="hp">PLAYER HP: <span id="playerLife">50</span></div>
+  </div>
 
-<div>使用カード欄</div>
-<div class="useArea" id="useArea"></div>
+  <div class="center">
+    <div class="splitArea">
+      <div class="side" aria-label="player-usage">
+        <div class="label">PLAYER 使用カード</div>
+        <div id="playerField" class="field"></div>
+        <div class="small" id="playerFieldNote">ここにプレイヤーがセットしたカードが表示されます</div>
+      </div>
 
-<button onclick="confirmPlay()">確定</button>
-<button onclick="clearSelection()">クリア</button>
+      <div class="side" aria-label="bot-usage">
+        <div class="label">BOT 使用カード</div>
+        <div id="botField" class="field"></div>
+        <div class="small" id="botFieldNote">ここにBOTの使用カード（攻撃・防御等）が表示されます</div>
+      </div>
+    </div>
 
-<div class="result" id="result"></div>
-<div class="popup" id="popup"></div>
-<div class="log" id="log"></div>
+    <div class="controls">
+      <button id="confirmBtn">確定</button>
+      <button id="clearBtn">クリア</button>
+      <div id="explain" class="small" style="margin-left:12px">選択はフェーズに応じて制限されます</div>
+    </div>
+
+    <div id="result" class="result" aria-live="polite"></div>
+  </div>
+
+  <div class="handWrap">
+    <div id="hand" class="hand"></div>
+  </div>
+
 </div>
 
-<div class="bottom">
-あなた ❤ <span id="playerLife"></span>
-<div class="hand" id="hand"></div>
-</div>
-</div>
+<div id="popup" class="popup" aria-hidden="true"></div>
+<div id="notice" class="notice" style="display:none"></div>
 
 <script>
+/* -----------------------
+   Stable Godfield Final
+   - defense: 確定で受けられる
+   - visual: popup & play animations
+   - show which defense cards used for both sides
+   - selected cards highlighted
+   - fields cleared at end of each full-turn
+   ----------------------- */
+
 let player, bot;
-let currentTurn="player";
-let currentPhase="action";
-let selected=[];
-let pendingDamage=0;
-let gameOver=false;
+let turn = "player";           // "player" or "bot"
+let phase = "action";          // "action" or "defense"
+let selected = [];             // selected indexes in player's hand
+let pendingDamage = 0;         // damage waiting to resolve
+let gameOver = false;
 
-function weightedValue(){
-const r1=Math.floor(Math.random()*15)+1;
-const r2=Math.floor(Math.random()*15)+1;
-return Math.round((r1+r2)/2);
+const handEl = document.getElementById("hand");
+const playerLifeEl = document.getElementById("playerLife");
+const botLifeEl = document.getElementById("botLife");
+const turnView = document.getElementById("turnView");
+const phaseView = document.getElementById("phaseView");
+const playerField = document.getElementById("playerField");
+const botField = document.getElementById("botField");
+const confirmBtn = document.getElementById("confirmBtn");
+const clearBtn = document.getElementById("clearBtn");
+const popupEl = document.getElementById("popup");
+const noticeEl = document.getElementById("notice");
+const resultEl = document.getElementById("result");
+
+function randWeighted(){
+  const a = Math.floor(Math.random()*15)+1;
+  const b = Math.floor(Math.random()*15)+1;
+  return Math.round((a+b)/2);
+}
+function randCard(){
+  const r=Math.random();
+  if(r<0.45) return {type:"attack", value: randWeighted()};
+  if(r<0.75) return {type:"defense", value: randWeighted()};
+  if(r<0.9)  return {type:"heal", value: [5,10,15,20][Math.floor(Math.random()*4)]};
+  return {type:"boost", value: [2,3,5][Math.floor(Math.random()*3)]};
 }
 
-function randomCard(){
-const r=Math.random();
-if(r<0.45)return{type:"attack",value:weightedValue()};
-if(r<0.75)return{type:"defense",value:weightedValue()};
-if(r<0.9){
-const vals=[5,10,15,20];
-return{type:"heal",value:vals[Math.floor(Math.random()*4)]};
-}
-const boosts=[2,3,5];
-return{type:"boost",value:boosts[Math.floor(Math.random()*3)]};
-}
-
-function fillHand(c){while(c.hand.length<5)c.hand.push(randomCard());}
-
-function log(t){
-const l=document.getElementById("log");
-l.innerHTML+=t+"<br>";
-l.scrollTop=l.scrollHeight;
-}
-
-function popup(text,color){
-const p=document.getElementById("popup");
-p.textContent=text;
-p.style.color=color;
-p.classList.remove("show");
-void p.offsetWidth;
-p.classList.add("show");
+function fillHand(h){
+  while(h.hand.length < 5) h.hand.push(randCard());
 }
 
 function init(){
-player={life:50,hand:[]};
-bot={life:50,hand:[]};
-fillHand(player);fillHand(bot);
-update();
-log("ゲーム開始");
+  player = {life:50, hand:[]};
+  bot = {life:50, hand:[]};
+  fillHand(player);
+  fillHand(bot);
+  turn = "player";
+  phase = "action";
+  selected = [];
+  pendingDamage = 0;
+  gameOver = false;
+  clearFields();
+  updateAll();
 }
 
-function update(){
-document.getElementById("playerLife").textContent=player.life;
-document.getElementById("botLife").textContent=bot.life;
-document.getElementById("turnView").textContent=currentTurn;
-document.getElementById("phaseView").textContent=currentPhase;
-renderHand();
-renderUseArea();
+function updateAll(){
+  playerLifeEl.textContent = player.life;
+  botLifeEl.textContent = bot.life;
+  turnView.textContent = turn;
+  phaseView.textContent = phase;
+  phaseView.className = phase==="action" ? "phase-action" : "phase-defense";
+  renderHand();
+  // fields remain until end-of-turn clears them
+  resultEl.textContent = "";
 }
 
 function renderHand(){
-const handDiv=document.getElementById("hand");
-handDiv.innerHTML="";
-if(gameOver)return;
+  handEl.innerHTML = "";
+  if(gameOver) return;
+  if(turn !== "player") return;
+  player.hand.forEach((c,i)=>{
+    if(phase==="defense" && c.type!=="defense") return; // defense phase -> only defense selectable
+    const card = makeCardElement(c);
+    if(selected.includes(i)) card.classList.add("selected");
+    card.onclick = ()=> toggleSelect(i);
+    handEl.appendChild(card);
+  });
+}
 
-if(currentTurn==="player"){
-player.hand.forEach((card,i)=>{
-if(currentPhase==="defense" && card.type!=="defense")return;
-const div=createCard(card);
-div.onclick=()=>selectCard(i);
-handDiv.appendChild(div);
+function makeCardElement(c){
+  const el = document.createElement("div");
+  el.className = "card " + c.type;
+  el.innerHTML = `<div class="type">${c.type}</div><div class="value">${c.value}</div>`;
+  return el;
+}
+
+function toggleSelect(i){
+  if(gameOver || turn!=="player") return;
+  const prospective = selected.includes(i) ? selected.filter(x=>x!==i) : [...selected, i];
+  const usedCards = prospective.map(idx => player.hand[idx]);
+  const err = validateSelection(usedCards);
+  if(err){
+    showNotice(err);
+    return; // invalid -> do not toggle
+  }
+  // valid, toggle
+  if(selected.includes(i)) selected = selected.filter(x=>x!==i);
+  else selected.push(i);
+  updateAll();
+  renderSelectedPreview(); // live preview
+}
+
+function renderSelectedPreview(){
+  // show player's selected cards in playerField immediately
+  // but use snapshot from player.hand for chosen indexes
+  playerField.innerHTML = "";
+  const used = selected.map(i=>player.hand[i]);
+  if(used.length===0){
+    playerField.innerHTML = `<div class="small" style="color:#999">選択カードはここに表示されます</div>`;
+    return;
+  }
+  used.forEach(c=>{
+    const el = makeCardElement(c);
+    el.classList.add("played");
+    playerField.appendChild(el);
+  });
+}
+
+function validateSelection(used){
+  // used = array of card objects the player *would* play
+  let atk = 0, boost = 0, heal = 0, def = 0;
+  used.forEach(c=>{
+    if(!c) return;
+    if(c.type==="attack") atk++;
+    if(c.type==="boost") boost++;
+    if(c.type==="heal") heal++;
+    if(c.type==="defense") def++;
+  });
+
+  if(phase==="action"){
+    if(def>0) return "行動フェーズでは防御カードは使用できません";
+    if(atk>1) return "攻撃カードは1枚のみ使用可能です";
+    if(boost>0 && atk===0) return "BOOSTは攻撃と同時のみ使用可能です";
+    if(heal>0 && (atk>0 || boost>0)) return "回復カードは単独でのみ使用できます";
+  }
+  if(phase==="defense"){
+    // defense phase: allow empty (we permit "確定で受ける")
+    // but if non-empty, ensure only defense cards included
+    if(used.some(c => c.type!=="defense")) return "防御フェーズでは防御カードのみ選択してください";
+  }
+  return null;
+}
+
+function showNotice(msg, timeout=1600){
+  noticeEl.textContent = msg;
+  noticeEl.style.display = "block";
+  clearTimeout(noticeEl._t);
+  noticeEl._t = setTimeout(()=> noticeEl.style.display = "none", timeout);
+}
+
+/* ------------ confirm / clear ------------ */
+
+confirmBtn.addEventListener("click", ()=> {
+  if(gameOver) return;
+  if(turn!=="player") { showNotice("現在はプレイヤー操作ターンではありません"); return; }
+  if(selected.length===0 && phase==="action"){ showNotice("カードが選択されていません"); return; }
+  // snapshot used cards BEFORE consumption
+  const used = selected.map(i => ({...player.hand[i]})); // shallow copy snapshot
+  const err = validateSelection(used);
+  if(err){ showNotice(err); return; }
+
+  if(phase==="action"){
+    // if heal-only
+    const healOnly = used.length>0 && used.every(c=>c.type==="heal");
+    const atkPresent = used.some(c=>c.type==="attack");
+
+    if(healOnly){
+      // consume -> show -> animate -> apply heal
+      consumeSelected(); showField("playerField", used);
+      const healTotal = used.reduce((s,c)=>s+(c.value||0),0);
+      animatePopup("+"+healTotal, "heal");
+      player.life += healTotal;
+      setTimeout(()=> { endPlayerTurn(); }, 600);
+      return;
+    }
+
+    if(atkPresent){
+      // attack: attack + boosts
+      consumeSelected(); showField("playerField", used);
+      const atkBase = used.filter(c=>c.type==="attack").reduce((s,c)=>s+c.value,0);
+      const boostTotal = used.filter(c=>c.type==="boost").reduce((s,c)=>s+c.value,0);
+      pendingDamage = atkBase + boostTotal;
+      // brief animation then bot automatic defense
+      animatePopup("-"+pendingDamage, "attack");
+      setTimeout(()=> botAutoDefense(pendingDamage), 480);
+      return;
+    }
+    // else (should not happen)
+  } else if(phase==="defense"){
+    // defense: allow empty -> take damage
+    const usedDef = selected.map(i => ({...player.hand[i]})); // snapshot
+    consumeSelected();
+    showField("playerField", usedDef.length?usedDef:[{type:"none", value:"防御なし"}]);
+    const defTotal = usedDef.reduce((s,c)=>s + (c.value||0), 0);
+    const final = Math.max(0, pendingDamage - defTotal);
+    animatePopup("-"+final, "hit");
+    player.life -= final;
+    pendingDamage = 0;
+    setTimeout(()=> endBotTurn(), 540);
+    return;
+  }
 });
-}
-}
 
-function renderUseArea(){
-const area=document.getElementById("useArea");
-area.innerHTML="";
-selected.forEach(i=>{
-const c=player.hand[i];
-const div=createCard(c);
-div.onclick=()=>unselectCard(i);
-area.appendChild(div);
-});
-}
-
-function createCard(card){
-const div=document.createElement("div");
-div.className="card "+card.type;
-div.innerHTML=`<div>${card.type}</div><div class="cardValue">${card.value}</div>`;
-return div;
-}
-
-function selectCard(i){
-if(gameOver||currentTurn!=="player")return;
-if(!selected.includes(i))selected.push(i);
-update();
-}
-
-function unselectCard(i){
-selected=selected.filter(x=>x!==i);
-update();
-}
-
-function clearSelection(){selected=[];update();}
-
-function validate(){
-let atk=0,boost=0,heal=0,def=0;
-selected.forEach(i=>{
-const c=player.hand[i];
-if(c.type==="attack")atk++;
-if(c.type==="boost")boost++;
-if(c.type==="heal")heal++;
-if(c.type==="defense")def++;
+clearBtn.addEventListener("click", ()=> {
+  if(gameOver) return;
+  selected = [];
+  renderSelectedPreview();
 });
 
-if(currentPhase==="action"){
-if(atk>1)return"攻撃は1枚のみ";
-if(boost>0 && atk===0)return"BOOSTは攻撃と同時";
-if(heal>0 && (atk>0||boost>0||def>0))return"回復は単体のみ";
-if(def>0)return"防御は使用不可";
+/* ------------ consumption show helpers ------------ */
+function consumeSelected(){
+  // remove selected indexes from player's hand (descending)
+  selected.sort((a,b)=>b-a).forEach(idx => player.hand.splice(idx,1));
+  selected = [];
+  renderHand();
 }
 
-if(currentPhase==="defense"){
-if(def===0)return"防御カードを選択";
+/* show cards in left/right fields (array of card objects) */
+function showField(domId, cards){
+  const field = document.getElementById(domId);
+  field.innerHTML = "";
+  if(!cards || cards.length===0){
+    field.innerHTML = `<div class="small" style="color:#999">なし</div>`;
+    return;
+  }
+  cards.forEach(c => {
+    const el = makeCardElement(c);
+    el.classList.add("played");
+    field.appendChild(el);
+  });
 }
 
-return null;
+/* animate center popup */
+function animatePopup(text, kind){
+  popupEl.textContent = text;
+  popupEl.style.color = kind==="heal" ? "#8fffb0" : (kind==="attack"||kind==="hit" ? "#ff8b8b" : "#fff");
+  popupEl.classList.remove("pop-show");
+  void popupEl.offsetWidth;
+  popupEl.classList.add("pop-show");
 }
 
-function confirmPlay(){
-if(gameOver||currentTurn!=="player")return;
-if(selected.length===0)return;
+/* ------------ BOT behavior & auto-defense ------------ */
 
-const error=validate();
-if(error){log("⚠ "+error);return;}
-
-let atk=0,boost=0,heal=0,def=0;
-selected.forEach(i=>{
-const c=player.hand[i];
-if(c.type==="attack")atk+=c.value;
-if(c.type==="boost")boost+=c.value;
-if(c.type==="heal")heal+=c.value;
-if(c.type==="defense")def+=c.value;
-});
-
-if(currentPhase==="action"){
-if(heal>0){
-consume();
-player.life+=heal;
-popup("+"+heal,"#0f0");
-log("回復 "+heal);
-endPlayerTurn();
-return;
-}
-if(atk>0){
-consume();
-pendingDamage=atk+boost;
-log("攻撃 "+pendingDamage);
-botDefense();
-return;
-}
-}
-
-if(currentPhase==="defense"){
-consume();
-const final=Math.max(0,pendingDamage-def);
-player.life-=final;
-popup("-"+final,"#f00");
-log("被弾 "+final);
-pendingDamage=0;
-endBotTurn();
-}
-}
-
-function consume(){
-selected.sort((a,b)=>b-a).forEach(i=>player.hand.splice(i,1));
-selected=[];
-update();
-}
-
-function botDefense(){
-let dmg=pendingDamage;
-const defs=bot.hand.filter(c=>c.type==="defense");
-defs.forEach(d=>{
-dmg-=d.value;
-bot.hand.splice(bot.hand.indexOf(d),1);
-});
-bot.life-=Math.max(0,dmg);
-popup("-"+Math.max(0,dmg),"#f00");
-log("BOT被弾 "+Math.max(0,dmg));
-pendingDamage=0;
-endPlayerTurn();
+function botAutoDefense(dmg){
+  // when player attacked, BOT defends automatically (choose defense cards)
+  let remaining = dmg;
+  // pick defense cards greedily by largest first, but show which used
+  const defs = bot.hand.map((c,i)=>({c,i})).filter(x=>x.c.type==="defense")
+                .sort((a,b)=>b.c.value - a.c.value);
+  const used = [];
+  for(const entry of defs){
+    if(remaining <= 0) break;
+    used.push(entry.c);
+    remaining -= entry.c.value;
+    // remove from bot.hand
+    const pos = bot.hand.findIndex(cc => cc===entry.c);
+    if(pos>=0) bot.hand.splice(pos,1);
+  }
+  if(used.length===0){
+    showField("botField", [{type:"none", value:"防御なし"}]);
+  } else {
+    showField("botField", used);
+  }
+  const final = Math.max(0, remaining);
+  animatePopup("-"+final, "attack");
+  bot.life -= final;
+  pendingDamage = 0;
+  // after short delay, end player's turn and clear fields as requested
+  setTimeout(()=> {
+    endPlayerTurn();
+  }, 700);
 }
 
 function botTurn(){
-if(gameOver)return;
-
-const atk=bot.hand.find(c=>c.type==="attack");
-if(!atk){endBotTurn();return;}
-
-bot.hand.splice(bot.hand.indexOf(atk),1);
-let total=atk.value;
-
-const boosts=bot.hand.filter(c=>c.type==="boost");
-boosts.forEach(b=>{
-total+=b.value;
-bot.hand.splice(bot.hand.indexOf(b),1);
-});
-
-pendingDamage=total;
-log("BOT攻撃 "+total);
-currentTurn="player";
-currentPhase="defense";
-update();
+  if(gameOver) return;
+  // BOT action: prefer heal if HP low, else attack if possible
+  // Check heal priority
+  const healIdx = bot.hand.findIndex(c=>c.type==="heal" && bot.life < 30);
+  if(healIdx >= 0){
+    const card = bot.hand.splice(healIdx,1)[0];
+    showField("botField", [card]);
+    animatePopup("+"+card.value, "heal");
+    bot.life += card.value;
+    // after short, end bot turn
+    setTimeout(()=> {
+      endBotTurn();
+    }, 700);
+    return;
+  }
+  // Attack
+  const atkIdx = bot.hand.findIndex(c=>c.type==="attack");
+  if(atkIdx === -1){
+    // no attack -> end bot turn
+    endBotTurn();
+    return;
+  }
+  // take attack and optionally boosts (we'll add all boosts)
+  const atkCard = bot.hand.splice(atkIdx,1)[0];
+  const boostCards = [];
+  // collect boosts (could use strategy; for now, use all boost cards)
+  for(let i = bot.hand.length-1; i>=0; i--){
+    if(bot.hand[i].type==="boost"){
+      boostCards.push(bot.hand.splice(i,1)[0]);
+    }
+  }
+  const used = [atkCard, ...boostCards];
+  showField("botField", used);
+  pendingDamage = used.reduce((s,c)=>s + (c.value||0), 0);
+  // now player must defend -> switch to player/defense phase
+  turn = "player";
+  phase = "defense";
+  updateAll();
+  // if player has no defense, allow auto-take (we permit "確定" to take)
+  // UI will show selected empty -> pressing 確定 will take.
 }
 
+/* ------------ end-turns (one place to change turn) ------------ */
+
 function endPlayerTurn(){
-fillHand(player);fillHand(bot);
-if(checkWin())return;
-currentTurn="bot";
-currentPhase="action";
-update();
-setTimeout(botTurn,800);
+  // after player's action-resolve (attack was handled by botAutoDefense) OR heal
+  // Clear fields (player and bot used displays), refill hands, switch to bot action
+  clearFields();
+  fillHand(player);
+  fillHand(bot);
+  if(checkEnd()) return;
+  turn = "bot";
+  phase = "action";
+  updateAll();
+  // let bot act after small delay
+  setTimeout(()=> { if(!gameOver) botTurn(); }, 650);
 }
 
 function endBotTurn(){
-fillHand(player);fillHand(bot);
-if(checkWin())return;
-currentTurn="player";
-currentPhase="action";
-update();
+  // after bot defense or after player defense-resolve -> refill and set to player action
+  clearFields();
+  fillHand(player);
+  fillHand(bot);
+  if(checkEnd()) return;
+  turn = "player";
+  phase = "action";
+  updateAll();
 }
 
-function checkWin(){
-if(player.life<=0){
-gameOver=true;
-document.getElementById("result").textContent="敗北";
-return true;
-}
-if(bot.life<=0){
-gameOver=true;
-document.getElementById("result").textContent="勝利";
-return true;
-}
-return false;
+/* ------------ utilities ------------ */
+
+function clearFields(){
+  playerField.innerHTML = "";
+  botField.innerHTML = "";
 }
 
+function checkEnd(){
+  if(player.life <= 0){
+    player.life = 0;
+    updateAll();
+    gameOver = true;
+    resultEl.textContent = "敗北";
+    animatePopup("敗北", "hit");
+    return true;
+  }
+  if(bot.life <= 0){
+    bot.life = 0;
+    updateAll();
+    gameOver = true;
+    resultEl.textContent = "勝利";
+    animatePopup("勝利", "heal");
+    return true;
+  }
+  updateAll();
+  return false;
+}
+
+/* ------------ initialization ------------ */
 init();
+
+/* expose some for debugging if needed */
+window._gf = {player, bot, state: ()=> ({turn,phase,pendingDamage}), init};
+
 </script>
 </body>
 </html>
