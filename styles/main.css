@@ -1,0 +1,367 @@
+/* 1. 【ダブルタップズーム無効化】すべての画面要素でタッチアクションをマニピュレーションに固定化 */
+    * { 
+      box-sizing: border-box; 
+      touch-action: manipulation; 
+      margin: 0;
+      padding: 0;
+    }
+    
+    /* スクロールバーのモダンなカスタマイズ */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #151518;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #33333b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #444450;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background: #0f0f11;
+      color: #e3e3e6;
+    }
+    body { display: flex; flex-direction: column; }
+    .pane-main { flex: 1; display: flex; flex-direction: row; overflow: hidden; border-bottom: 1px solid #222227; }
+    .pane-left { flex: 1; display: flex; flex-direction: column; background: #16161a; border-right: 1px solid #222227; min-width: 0; }
+    .pane-right { flex: 1; display: flex; flex-direction: column; background: #111113; position: relative; min-width: 0; }
+    
+    /* エディタとハイライトの重ね合わせ */
+    .area-editor { flex: 1; display: flex; flex-direction: column; padding: 6px; overscroll-behavior: contain; position: relative; }
+    .editor-container { 
+      flex: 1; 
+      width: 100%; 
+      position: relative; 
+      overflow: hidden; 
+      border: 1px solid #282830; 
+      background: #1b1b22; 
+      border-radius: 6px; 
+      display: flex; 
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+    }
+    
+    /* 2. 【行番号エリアのズレ修正】幅を 42px に縮小 */
+    .editor-container .line-numbers {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 42px; 
+      background: #141418;
+      border-right: 1px solid #282830;
+      padding: 8px 0; /* 上下の余白をテキストパディングと完全一致 */
+      overflow: hidden;
+      user-select: none;
+      box-sizing: border-box;
+      color: #555562;
+    }
+    /* 自動改行・折り返し時の行ズレバグ解消 */
+    .line-number-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 0 4px;
+      width: 100%;
+      box-sizing: border-box;
+      height: 18px;
+      overflow: hidden;
+    }
+    
+    /* 2. 【自動改行ズレ修正】自動折り返しをpre指定により強制排除し物理ズレを完全根絶！ */
+    .editor-container .backdrop {
+      position: absolute;
+      left: 42px; right: 0; top: 0; bottom: 0;
+      padding: 8px 10px;
+      margin: 0;
+      border: none !important;
+      box-sizing: border-box;
+      pointer-events: none;
+      overflow-y: scroll;
+      background-color: #1b1b22;
+      color: #e3e3e6;
+    }
+    .editor-container .backdrop, .area-editor .input, .editor-container .line-numbers {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+      font-size: 12px !important;
+      line-height: 18px !important;
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+      white-space: pre !important; /* 横スクロール仕様に統一し、行の折り返しによる縦方向の累積ズレを物理的に抹消 */
+      word-wrap: normal !important; 
+      word-break: keep-all !important;
+    }
+    .editor-container .highlight {
+      margin: 0;
+      padding: 0;
+    }
+    .highlight-row {
+      min-height: 18px;
+      box-sizing: border-box;
+    }
+    .area-editor .input {
+      position: absolute;
+      left: 42px; right: 0; top: 0; bottom: 0;
+      width: calc(100% - 42px);
+      height: 100%;
+      resize: none;
+      padding: 8px 10px;
+      border: none !important;
+      outline: none;
+      overscroll-behavior: contain;
+      background: transparent !important;
+      color: transparent !important;
+      caret-color: #58a6ff;
+      overflow-y: scroll;
+      box-sizing: border-box;
+    }
+    .area-editor .input:placeholder-shown {
+      color: #555562 !important;
+    }
+
+    /* フッター・ボタン等のダークモード・UXリファイン */
+    .area-footer { 
+      flex-shrink: 0; 
+      background: #141418; 
+      padding: 6px 10px; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 6px; 
+      border-top: 1px solid #222227; 
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+    }
+    .button-group { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    
+    /* 標準ボタンの定義 */
+    .button { 
+      padding: 6px 12px; 
+      background: #23232a; 
+      border: 1px solid #333340; 
+      font-size: 11px; 
+      font-weight: 500;
+      border-radius: 4px; 
+      cursor: pointer; 
+      color: #c9c9d4; 
+      text-decoration: none; 
+      text-align: center; 
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .button:hover { 
+      background: #2e2e38; 
+      border-color: #444455; 
+      color: #ffffff; 
+    }
+    
+    /* 難易度ごとにアクティブカラーを個別化 */
+    .button.is-active { 
+      font-weight: bold; 
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+    }
+    .controls-diff .btn-diff-0.is-active { background: #388e3c; border-color: #4caf50; } /* かんたん: 緑 */
+    .controls-diff .btn-diff-1.is-active { background: #1976d2; border-color: #2196f3; } /* ふつう: 青 */
+    .controls-diff .btn-diff-2.is-active { background: #f57c00; border-color: #ff9800; } /* むずかしい: 橙 */
+    .controls-diff .btn-diff-3.is-active { background: #d32f2f; border-color: #f44336; } /* おに: 赤 */
+    .controls-diff .btn-diff-4.is-active { background: #7b1fa2; border-color: #9c27b0; } /* 裏おに: 紫 */
+
+    /* ページ選択用アクティブカラー (インディゴブルー) */
+    .controls-page .button.is-active {
+      background: #4f46e5;
+      border-color: #6366f1;
+    }
+    .controls-page .button.is-active:hover {
+      background: #4338ca;
+    }
+    
+    .area-pages { flex: 1; overflow: auto; padding: 8px; -webkit-overflow-scrolling: touch; text-align: center; background: #0f0f11; }
+    .page-editor, .page-preview { transition: width 0.1s ease; margin: 0 auto; width: 100%; display: inline-block; }
+    
+    /* エディタ用の譜面画像 Canvas */
+    .page-editor canvas { 
+      background: #b0b0b5; 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4); 
+      border-radius: 6px;
+      width: 100% !important; 
+      height: auto !important; 
+      display: block; 
+      margin: 0 auto; 
+      image-rendering: pixelated; 
+    }
+    
+    /* プレビュー用キャンバスに対する CSS 指定 */
+    #jiro-previewCanvas {
+      background: transparent !important;
+      box-shadow: none !important;
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+    
+    /* エラーパネル */
+    .area-errors { 
+      background: #2a1414; 
+      font-size: 11px; 
+      color: #ff8888; 
+      padding: 4px 10px; 
+      border-top: 1px solid #4a1c1c; 
+      font-family: monospace;
+    }
+    .is-hidden { display: none; }
+    
+    /* 統計・グラデーション設定パネル */
+    .page-statistics, .page-gradation { 
+      background: #16161a; 
+      color: #e3e3e6; 
+      padding: 10px; 
+      text-align: left; 
+      border-radius: 6px; 
+      height: 100%; 
+      overflow-y: auto; 
+      font-size: 12px; 
+      line-height: 1.4; 
+      border: 1px solid #222227;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .page-statistics h2, .page-gradation h2 { 
+      margin: 0 0 8px 0; 
+      font-size: 16px; 
+      border-bottom: 2px solid #2c2c35; 
+      padding-bottom: 4px; 
+      color: #ffffff;
+    }
+    
+    /* メトリックカード風統計情報表示 */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); 
+      gap: 6px; 
+      margin-bottom: 10px; 
+    }
+    .stat-card {
+      background: #1f1f26;
+      border: 1px solid #2e2e3a;
+      border-radius: 4px; 
+      padding: 6px 8px; 
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-label { 
+      font-size: 10px; 
+      color: #8c8c9e; 
+      margin-bottom: 2px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .stat-val {
+      font-size: 14px;
+      font-weight: bold;
+      color: #ffffff;
+    }
+
+    .st-main-title { font-size: 1.4em; font-weight: bold; margin-bottom: 2px; display: block; color: #ffffff; }
+    .st-main-subtitle { font-size: 1.0em; color: #8c8c9e; margin-bottom: 10px; display: block; }
+
+    /* グラデーションパネル内のスタイル調整 */
+    .page-gradation, .page-gradation div, .page-gradation strong { color: #e3e3e6 !important; }
+    .page-gradation strong { color: #ffffff !important; }
+    .page-gradation code { 
+      background: #23232d !important; 
+      color: #ff79c6 !important; 
+      border: 1px solid #333344 !important; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-family: monospace;
+      font-size: 11px;
+    }
+    #grad-list { color: #8c8c9e !important; border-top: none !important; }
+    .page-gradation div[style*="border-top"] { border-top-color: #2c2c35 !important; }
+
+    .density-graph-container { background: #121215; margin-top: 10px; padding: 8px; border-radius: 6px; text-align: left; overflow: hidden; border: 1px solid #222227; }
+    .density-graph-container h3 { color: #fff; margin: 0 0 6px 0; font-size: 11px; border-left: 3px solid #ff3333; padding-left: 6px; }
+    #density-svg-wrapper { width: 100%; display: block; }
+    .stat-graph line { stroke: #2a2a35; }
+    .stat-graph text { fill: #8c8c9e; font-size: 10px; font-family: monospace; }
+
+    /* カスタムスライダー (Range) デザイン */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+    }
+    input[type="range"]:focus {
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      background: #2a2a35;
+      border-radius: 2px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      height: 12px;
+      width: 12px;
+      border-radius: 50%;
+      background: #58a6ff;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -4px;
+      box-shadow: 0 0 6px rgba(88, 166, 255, 0.5);
+      transition: background-color 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      background: #79b8ff;
+    }
+
+    /* プレビュー用セレクトボックス */
+    select#jiro-speed {
+      background: #23232a;
+      color: #fff;
+      border: 1px solid #333340;
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-size: 11px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* 集中モード */
+    body.focus-mode .area-errors {
+      display: none !important;
+    }
+    body.focus-mode .controls-diff {
+      display: none !important;
+    }
+    body.focus-mode .controls-page > *:not(div) {
+      display: none !important;
+    }
+    body.focus-mode .controls-page > div {
+      margin-left: auto !important;
+    }
+    body.focus-mode .area-footer {
+      padding: 4px 10px !important;
+    }
+
+    /* 2. 【要件2】スマートフォン縦画面専用のCSS設計 (自動折り返しを強制無効化) */
+    @media (max-width: 768px) {
+      .editor-container .backdrop, .area-editor .input, .editor-container .line-numbers {
+        font-size: 11px !important;
+        line-height: 16px !important; /* 縦幅ズレを防ぐためフォントサイズ＆行高さを詰めて完璧に統一 */
+        white-space: pre !important; /* モバイルも折り返しを強制排除 */
+      }
+      .line-number-row {
+        height: 16px !important;
+      }
+      .highlight-row {
+        min-height: 16px !important;
+      }
+    }

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TJA Tools+</title>
+  <script src="https://unpkg.com/umbrellajs@3.3.0/umbrella.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/2.0.0/encoding.min.js"></script>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+
+<main class="pane-main">
+  <section class="pane-left">
+    <div class="area-editor">
+      <!-- 1. 【レイアウト修正】「TJA EDITOR」の表記エリアを完全に削除し、エディタ縦幅を上方向に拡張 -->
+      <div class="editor-container">
+        <div class="line-numbers"></div>
+        <div class="backdrop"><div class="highlight"></div></div>
+        <textarea class="input" placeholder="TJA data..."></textarea>
+      </div>
+    </div>
+    <div class="area-errors"><div class="errors">No error</div></div>
+  </section>
+  <section class="pane-right">
+    <div class="area-pages">
+      <!-- 1. エディタ (旧 プレビュー全体表示) -->
+      <div class="page page-editor"></div>
+      
+      <!-- 2. プレビュー (太鼓さん次郎風同期演奏プレビュー) -->
+      <div class="page page-preview is-hidden">
+        <div style="width: 100%; display: flex; flex-direction: column; background: #16161a; padding: 10px; border-radius: 6px; border: 1px solid #222227; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          
+          <!-- プレビュー枠 (【要件1: 描画レイヤーの完全固定】絶対的なインラインスタイルへの完全置換による、太鼓画像やコンボ数表示のはみ出し・重なりバグ防止) -->
+          <div id="jiro-preview-container" style="width: 100%; background: #09090b; border: 2px solid #2c2c35; height: 150px; outline: none; touch-action: none; user-select: none; border-radius: 6px; position: relative; overflow: hidden !important;" tabindex="0">
+            <div class="lane" style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.15); border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1);"></div>
+            
+            <!-- 小節番号・再生時間などを表示するレイヤー (z-index 30で太鼓のCanvas z-index 20より前面に配置) -->
+            <div id="jiro-measure-display" class="absolute pointer-events-none text-white rounded" style="position: absolute; left: 120px; top: 8px; z-index: 30; font-size: 10px; font-weight: 600; background: rgba(0,0,0,0.75); padding: 2px 6px; white-space: nowrap; border: 1px solid #333;">小節: 0 / 0</div>
+            
+            <canvas id="jiro-previewCanvas" style="position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; z-index: 20; pointer-events: none;"></canvas>
+          </div>
+
+          <!-- 音源ステータスバー -->
+          <div style="display: flex; align-items: center; justify-content: flex-start; margin-top: 6px; margin-bottom: 2px; padding: 0 2px;">
+            <div id="music-filename-display" style="font-size: 11px; color: #8c8c9e; font-family: ui-monospace, SFMono-Regular, monospace; background: #1f1f26; padding: 2px 6px; border-radius: 4px; border: 1px solid #2e2e3a; display: inline-flex; align-items: center; gap: 4px; z-index: 10;">
+              音源: 未ロード
+            </div>
+          </div>
+
+          <!-- 再生コントロールパネル -->
+          <div style="display: flex; flex-direction: column; gap: 6px; background: #1f1f26; padding: 8px 10px; border-radius: 6px; border: 1px solid #2e2e3a; margin-top: 6px; margin-bottom: 6px;">
+            
+            <!-- ボタンアクション行 -->
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: space-between;">
+              <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                <button class="button" id="jiro-btn-play" style="background: #4f46e5; color: white; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; font-size: 11px;">再生</button>
+                <button class="button" id="jiro-btn-stop" style="background: #dc3545; color: white; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; font-size: 11px;">停止</button>
+                <button class="button" id="jiro-btn-prev" style="background: #2e2e38; color: white; border: 1px solid #444; padding: 6px 10px; font-weight: bold; border-radius: 4px; font-size: 11px;">◀ 前の小節</button>
+                <button class="button" id="jiro-btn-next" style="background: #2e2e38; color: white; border: 1px solid #444; padding: 6px 10px; font-weight: bold; border-radius: 4px; font-size: 11px;">▶ 次の小節</button>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <span id="jiro-time-display" style="font-size: 11px; font-family: ui-monospace, monospace; color: #ffffff;">0.00 / 0.00s</span>
+                <span style="font-size: 11px; color: #8c8c9e;">速度:</span>
+                <select id="jiro-speed">
+                  <option value="1.0" selected>1.0x</option>
+                  <option value="0.75">0.75x</option>
+                  <option value="0.5">0.5x</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 音量コントロール行 -->
+            <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding-top: 4px; border-top: 1px solid #2c2c35; flex-wrap: wrap;">
+              <div style="display: flex; gap: 6px; align-items: center; min-width: 90px;">
+                <span style="font-size: 11px; color: #8c8c9e;">音量:</span>
+                <input type="range" id="jiro-vol-music" min="0" max="100" value="80" style="width: 60px;">
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; min-width: 80px;">
+                <span style="font-size: 11px; color: #8c8c9e;">SE:</span>
+                <input type="range" id="jiro-vol-se" min="0" max="100" value="80" style="width: 60px;">
+              </div>
+            </div>
+          </div>
+
+          <!-- シークバー -->
+          <div style="width: 100%; display: flex; align-items: center; padding: 2px 0;">
+            <input type="range" id="jiro-seekbar" min="0" max="1000" value="0" style="width: 100%;">
+          </div>
+          
+          <!-- ミニキーボード解説 -->
+          <div style="width: 100%; margin-top: 6px; text-align: left; font-size: 11px; color: #6e7681; line-height: 1.4; border-top: 1px solid #222227; padding-top: 6px;">
+            ※ 譜面確認用のオート演奏ビューアです。再生中の自動打鍵に合わせて、音符が流れます。<br>
+            ※ [Space] で再生/一時停止。停止中 [←]/[→] で1小節シークします。
+          </div>
+        </div>
+      </div>
+      
+      <!-- 5. 統計情報 -->
+      <div class="page page-statistics is-hidden">
+        <h2>譜面情報</h2>
+        <span id="st-title" class="st-main-title"></span>
+        <span id="st-subtitle" class="st-main-subtitle"></span>
+        
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-label">難易度</span>
+            <span id="st-diff" class="stat-val"></span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">BPM</span>
+            <span id="st-bpm" class="stat-val"></span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">ノーツ数</span>
+            <span id="st-notes" class="stat-val"></span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">演奏時間</span>
+            <span id="st-time" class="stat-val"></span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">平均密度</span>
+            <span id="st-density" class="stat-val"></span>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid #2c2c35; padding-top: 8px; margin-top: 6px;">
+          <span class="stat-label" style="display: block; margin-bottom: 4px;">連打情報</span>
+          <div id="st-renda" style="font-size: 11px; line-height: 1.4; color: #e3e3e6; padding-left: 0;"></div>
+        </div>
+
+        <div class="density-graph-container">
+          <h3>平均密度の推移</h3>
+          <div id="density-svg-wrapper"><svg id="density-svg" class="stat-graph"></svg></div>
+        </div>
+      </div>
+
+      <div class="page page-gradation is-hidden">
+        <h2>グラデーション設定</h2>
+        <div id="grad-list" style="margin-bottom:10px; font-size:11px; color:#8c8c9e;">独自コマンドを解析します</div>
+        <button class="button" id="btn-grad-replace" style="width:100%; background:#4f46e5; color:white; border:none; padding:8px 0; font-weight:bold;">#SCROLLを置換</button>
+        
+        <div style="margin-top:12px; text-align:left; font-size:11px; line-height:1.5; color:#a0a0a8; border-top:1px solid #2c2c35; padding-top:8px;">
+          <strong style="color:#ffffff;">【記述形式】</strong><br>
+          <code>#GRADSTART 開始HS 終了HS [a加速係数]</code><br>
+          <span style="font-size: 10px; color:#6e7681;">（譜面データ・BPM変化等）</span><br>
+          <code>#GRADEND</code><br><br>
+
+          <strong style="color:#ffffff;">■ 等差モード（線形変化）</strong><br>
+          例：<code style="color:#ff79c6;">#GRADSTART 1.0 2.0</code><br>
+          時間経過に応じて、スクロール速度が一定の割合で滑らかに変化します。<br><br>
+
+          <strong style="color:#ffffff;">■ 等比モード（曲線変化）</strong><br>
+          例：<code style="color:#ff79c6;">#GRADSTART 1.0 2.0 a2.0</code><br>
+          「a + 数値」を指定します。加速係数に基づいた指数関数的な変化（擬似加速・減速）を行います。
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="area-footer">
+  <!-- 難易度ピルタブグループ -->
+  <div class="button-group controls-diff">
+    <span class="button btn-diff-0 is-hidden" data-value='0'>かんたん</span>
+    <span class="button btn-diff-1 is-hidden" data-value='1'>ふつう</span>
+    <span class="button btn-diff-2 is-hidden" data-value='2'>むずかしい</span>
+    <span class="button btn-diff-3 is-hidden" data-value='3'>おに</span>
+    <span class="button btn-diff-4 is-hidden" data-value='4'>裏おに</span>
+  </div>
+  
+  <!-- 下部操作ボタン＆ユーティリティ -->
+  <div class="button-group controls-page">
+    <span class="button btn-page-editor is-active" data-value='editor'>エディタ</span>
+    <span class="button btn-page-preview" data-value='preview'>プレビュー</span>
+    <span class="button btn-page-statistics" data-value='statistics'>情報</span>
+    <span class="button btn-page-gradation" data-value='gradation'>グラデ</span>
+    <button class="button" style="background:#23232d; color:#e3e3e6; border:1px solid #3c3c4a;" id="btn-open">読込</button>
+    <button class="button" style="background:#15803d; color:white; border:none;" id="btn-tja-save">TJA</button>
+    <button class="button" style="background:#15803d; color:white; border:none;" id="btn-save">PNG</button>
+    <input type="file" id="file-input" class="is-hidden" accept="*/*">
+    <div style="margin-left:auto; display:flex; gap:3px;">
+        <button class="button" id="zoom-out" style="width:30px; padding:0;">－</button>
+        <button class="button" id="zoom-in" style="width:30px; padding:0;">＋</button>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
