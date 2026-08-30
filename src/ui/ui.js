@@ -1,7 +1,6 @@
 import { drawChart, formatBpm } from '../renderer/chart-renderer.js';
 import { updateJiroPreview } from '../player/player.js';
 import { getStats, drawDensityGraph } from '../analysis/statistics.js';
-import { analyzePatterns } from '../analysis/pattern.js';
 
 export function triggerTaikoEffect(part, time) {
     taikoEffects[part].active = true;
@@ -123,7 +122,7 @@ export function updateUI() {
       
       u('#st-renda').html(rendaHtml); drawDensityGraph(s.measures);
       
-      const p = analyzePatterns(c);
+      
       let patternHtml = '';
       if (p) {
         patternHtml += `<div style="margin-bottom:12px;">
